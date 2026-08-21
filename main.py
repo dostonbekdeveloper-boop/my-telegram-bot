@@ -7,7 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
-BOT_TOKEN = "8723785529:AAfTFTP30fklzQ_2_HeaSXnh7HZ5ZlnjyZ0"
+BOT_TOKEN = "8723785529:AAFtFTP3OfklzQ_2_HeaSXnh7HZ5ZlnjyZ0"
 ADMIN_GROUP_ID = -5313635885  
 
 logging.basicConfig(level=logging.INFO)
