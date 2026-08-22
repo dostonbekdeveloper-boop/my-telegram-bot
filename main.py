@@ -1,149 +1,155 @@
-import asyncio
+import os
 import logging
+import asyncio
+from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
-BOT_TOKEN = "8723785529:AAFtFTP3OfklzQ_2_HeaSXnh7HZ5ZlnjyZ0"
-ADMIN_GROUP_ID = -5313635885  
-
+# Logging sozlamasi
 logging.basicConfig(level=logging.INFO)
+
+# Telegram Bot Tokeningiz
+BOT_TOKEN = "8978186820:AAEcIWEcBdr_U5BCzFj8KM_dMy20j5KeXc"
+
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+dp = Dispatcher()
 
-class Registration(StatesGroup):
-    name = State()
-    phone = State()
-    category = State()
-    course = State()
+# Ro'yxatdan o'tish bosqichlari (FSM)
+class PlatonRegistration(StatesGroup):
+    waiting_for_name = State()
+    waiting_for_phone = State()
+    waiting_for_level = State()
 
-phone_keyboard = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text="📱 Telefon raqamni yuborish", request_contact=True)]],
-    resize_keyboard=True,
-    one_time_keyboard=True
-)
+# --- TUGMALAR (KEYBOARDS) ---
 
-categories_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="📐 Matematika"), KeyboardButton(text="🇬🇧 Ingliz tili")]
-    ],
-    resize_keyboard=True
-)
-
-math_courses_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Matematika: Maktab kursi (5-9 sinf)")],
-        [KeyboardButton(text="Matematika: DTM / OTMga tayyorgarlik")],
-        [KeyboardButton(text="Matematika: Mantiq va Olimpiada")],
-        [KeyboardButton(text="⬅️ Orqaga")]
-    ],
-    resize_keyboard=True
-)
-
-english_courses_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Ingliz tili: General English (A1-B2)")],
-        [KeyboardButton(text="Ingliz tili: IELTS tayyorlov")],
-        [KeyboardButton(text="Ingliz tili: CEFR tayyorlov")],
-        [KeyboardButton(text="⬅️ Orqaga")]
-    ],
-    resize_keyboard=True
-)
-
-# Start komandasi
-@dp.message(CommandStart())
-async def cmd_start(message: types.Message, state: FSMContext):
-    await message.answer(
-        f"Salom, {message.from_user.first_name}!\nO'quv markazimizga xush kelibsiz.\n\nRo'yxatdan o'tish uchun **Ism va Familiyangizni** kiriting:"
+def get_main_keyboard():
+    return types.ReplyKeyboardMarkup(
+        keyboard=[
+            [types.KeyboardButton(text="📝 Ingliz tili kursiga ro'yxatdan o'tish")],
+            [types.KeyboardButton(text="🇬🇧 Platon School haqida"), types.KeyboardButton(text="📞 Aloqa va Manzil")]
+        ],
+        resize_keyboard=True
     )
-    await state.set_state(Registration.name)
 
-# Kategoriyalarni alohida ko'rish buyrug'i
-@dp.message(Command("categories"))
-@dp.message(F.text == "📂 Kategoriyalarni ko me'morchiligi")
-async def show_categories(message: types.Message, state: FSMContext):
-    await message.answer("Mavjud kategoriyalarimiz:", reply_markup=categories_keyboard)
-    await state.set_state(Registration.category)
+def get_phone_keyboard():
+    return types.ReplyKeyboardMarkup(
+        keyboard=[
+            [types.KeyboardButton(text="📱 Telefon raqamni yuborish", request_contact=True)],
+            [types.KeyboardButton(text="❌ Bekor qilish")]
+        ],
+        resize_keyboard=True
+    )
 
-# 1-qadam: Ism
-@dp.message(Registration.name)
+def get_english_levels_keyboard():
+    return types.ReplyKeyboardMarkup(
+        keyboard=[
+            [types.KeyboardButton(text="🟢 General English (Noldan)"), types.KeyboardButton(text="🟡 CEFR tayyorlov")],
+            [types.KeyboardButton(text="🔴 IELTS tayyorlov"), types.KeyboardButton(text="👶 Kids English")],
+            [types.KeyboardButton(text="❌ Bekor qilish")]
+        ],
+        resize_keyboard=True
+    )
+
+def get_cancel_keyboard():
+    return types.ReplyKeyboardMarkup(
+        keyboard=[[types.KeyboardButton(text="❌ Bekor qilish")]],
+        resize_keyboard=True
+    )
+
+# --- BUYRUQLAR VA ASOSIY MENYU ---
+
+@dp.message(CommandStart())
+async def start_handler(message: types.Message, state: FSMContext):
+    await state.clear()
+    welcome_text = (
+        f"Assalomu alaykum, <b>{message.from_user.first_name}</b>!\n\n"
+        f"🇬🇧 <b>Platon School - Ingliz tili maktabi</b> rasmiy botiga xush kelibsiz!\n\n"
+        f"Ingliz tilini professional darajada o'rganish va darslarga yozilish uchun quyidagi menyudan foydalaning."
+    )
+    await message.answer(welcome_text, parse_mode="HTML", reply_markup=get_main_keyboard())
+
+@dp.message(Command("cancel"))
+@dp.message(F.text == "❌ Bekor qilish")
+async def cancel_handler(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("Jarayon bekor qilindi. Bosh menyudasiz.", reply_markup=get_main_keyboard())
+
+@dp.message(F.text == "🇬🇧 Platon School haqida")
+async def about_handler(message: types.Message):
+    about_text = (
+        "🇬🇧 <b>Platon English School</b>\n\n"
+        "✨ <b>Nima uchun aynan biz?</b>\n"
+        "• Tajribali va IELTS 8.0+ sertifikatli ustozlar\n"
+        "• Interaktiv va zamonaviy Speaking klublar\n"
+        "• Noldan mukammal darajagacha o'rgatish tizimi\n"
+        "• IELTS va CEFR imtihonlariga kafolatli tayyorlov\n\n"
+        "🎓 Kelajagingizni biz bilan birga quring!"
+    )
+    await message.answer(about_text, parse_mode="HTML")
+
+@dp.message(F.text == "📞 Aloqa va Manzil")
+async def contact_handler(message: types.Message):
+    contact_text = (
+        "📞 <b>Platon School bilan bog'lanish:</b>\n\n"
+        "☎️ <b>Telefon:</b> +998 90 123 45 67\n"
+        "📍 <b>Manzil:</b> Toshkent shahri, Yunusobod tumani\n"
+        "🌐 <b>Telegram admin:</b> @platon_english_admin\n"
+        "⏰ <b>Ish vaqti:</b> 09:00 - 18:00 (Dushanba - Shanba)"
+    )
+    await message.answer(contact_text, parse_mode="HTML")
+
+# --- RO'YXATDAN O'TISH TIZIMI ---
+
+@dp.message(F.text == "📝 Ingliz tili kursiga ro'yxatdan o'tish")
+async def start_registration(message: types.Message, state: FSMContext):
+    await state.set_state(PlatonRegistration.waiting_for_name)
+    await message.answer("To'liq <b>ism va familiyangizni</b> kiriting:\n\n<i>(Masalan: Jasur Rahimov)</i>", parse_mode="HTML", reply_markup=get_cancel_keyboard())
+
+@dp.message(PlatonRegistration.waiting_for_name)
 async def process_name(message: types.Message, state: FSMContext):
     await state.update_data(full_name=message.text)
-    await message.answer(
-        "Ajoyib! Endi **telefon raqamingizni** yuboring yoki quyidagi tugmani bosing:",
-        reply_markup=phone_keyboard
-    )
-    await state.set_state(Registration.phone)
+    await state.set_state(PlatonRegistration.waiting_for_phone)
+    await message.answer("Siz bilan bog'lanishimiz uchun <b>telefon raqamingizni</b> yuboring:", parse_mode="HTML", reply_markup=get_phone_keyboard())
 
-# 2-qadam: Telefon
-@dp.message(Registration.phone)
+@dp.message(PlatonRegistration.waiting_for_phone)
 async def process_phone(message: types.Message, state: FSMContext):
-    phone_number = message.contact.phone_number if message.contact else message.text
-    await state.update_data(phone=phone_number)
+    phone = message.contact.phone_number if message.contact else message.text
+    await state.update_data(phone_number=phone)
+    await state.set_state(PlatonRegistration.waiting_for_level)
+    await message.answer("Qaysi <b>yo'nalish/daraja</b> bo'yicha ta'lim olmoqchisiz?", parse_mode="HTML", reply_markup=get_english_levels_keyboard())
+
+@dp.message(PlatonRegistration.waiting_for_level)
+async def process_level(message: types.Message, state: FSMContext):
+    await state.update_data(level=message.text)
+    user_data = await state.get_data()
     
-    await message.answer(
-        "Qaysi **kategoriya** bo'yicha tahsil olmoqchisiz?",
-        reply_markup=categories_keyboard
+    summary_text = (
+        "🎉 <b>Arizangiz muvaffaqiyatli qabul qilindi!</b>\n\n"
+        f"👤 <b>O'quvchi:</b> {user_data['full_name']}\n"
+        f"📞 <b>Telefon:</b> {user_data['phone_number']}\n"
+        f"📚 <b>Tanlangan kurs:</b> {user_data['level']}\n\n"
+        "🏛 <b>Platon School</b> administratorlari tez orada siz bilan bog'lanib, bepul sinov darsiga taklif qilishadi!"
     )
-    await state.set_state(Registration.category)
-
-# 3-qadam: Kategoriya tanlash
-@dp.message(Registration.category)
-async def process_category(message: types.Message, state: FSMContext):
-    category = message.text
-    if "Matematika" in category:
-        await state.update_data(category="Matematika")
-        await message.answer("Matematika yo'nalishi bo'yicha kursni tanlang:", reply_markup=math_courses_keyboard)
-        await state.set_state(Registration.course)
-    elif "Ingliz tili" in category:
-        await state.update_data(category="Ingliz tili")
-        await message.answer("Ingliz tili yo'nalishi bo'yicha kursni tanlang:", reply_markup=english_courses_keyboard)
-        await state.set_state(Registration.course)
-    else:
-        await message.answer("Iltimos, kategoriyalardan birini tanlang:", reply_markup=categories_keyboard)
-
-# 4-qadam: Kursni tanlash va Admin guruhiga ma'lumot yuborish
-@dp.message(Registration.course)
-async def process_course(message: types.Message, state: FSMContext):
-    if message.text in ["⬅️ Orqaga", "Orqaga", "orqaga"]:
-        await message.answer("Kategoriyani qayta tanlang:", reply_markup=categories_keyboard)
-        await state.set_state(Registration.category)
-        return
-
-    await state.update_data(course=message.text)
-    data = await state.get_data()
-
-    user_text = (
-        "✅ **Ro'yxatdan o'tish muvaffaqiyatli yakunlandi!**\n\n"
-        f"👤 **Ism-familiya:** {data.get('full_name', 'Kiritilmagan')}\n"
-        f"📞 **Telefon:** {data.get('phone', 'Kiritilmagan')}\n"
-        f"📂 **Kategoriya:** {data['category']}\n"
-        f"📚 **Kurs:** {data['course']}\n\n"
-        "Tez orada menejerlarimiz siz bilan bog'lanishadi!"
-    )
-    await message.answer(user_text, reply_markup=ReplyKeyboardRemove(), parse_mode="Markdown")
-
-    admin_text = (
-        "📥 **YANGI ARIZA TUSHDI!**\n\n"
-        f"👤 **O'quvchi:** {data.get('full_name', 'Kiritilmagan')}\n"
-        f"📞 **Tel:** `{data.get('phone', 'Kiritilmagan')}`\n"
-        f"📂 **Yo'nalish:** {data['category']}\n"
-        f"📚 **Kurs:** {data['course']}\n"
-        f"🔗 **User:** @{message.from_user.username if message.from_user.username else 'Mavjud emas'}\n"
-        f"🆔 **Telegram ID:** `{message.from_user.id}`"
-    )
-
-    try:
-        await bot.send_message(chat_id=ADMIN_GROUP_ID, text=admin_text, parse_mode="Markdown")
-    except Exception as e:
-        logging.error(f"Admin guruhiga xabar yuborishda xatolik: {e}")
-
+    
+    await message.answer(summary_text, parse_mode="HTML", reply_markup=get_main_keyboard())
     await state.clear()
 
+# --- WEB SERVER (RENDER UCHUN) VA BOTNI ISHGA TUSHIRISH ---
+
+async def handle(request):
+    return web.Response(text="Platon School Bot ishlayapti!")
+
 async def main():
+    app = web.Application()
+    app.router.add_get("/", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
